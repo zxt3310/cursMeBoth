@@ -3771,7 +3771,8 @@
 				ORGANIZATIONNAME = Tim;
 				TargetAttributes = {
 					22FA9691169D06870058E8D4 = {
-						ProvisioningStyle = Manual;
+						DevelopmentTeam = 429WZWZX68;
+						ProvisioningStyle = Automatic;
 						SystemCapabilities = {
 							com.apple.Push = {
 								enabled = 1;
@@ -3788,6 +3789,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 			);
 			mainGroup = 22FA9687169D06870058E8D4;
@@ -4841,8 +4843,8 @@
 				CODE_SIGN_ENTITLEMENTS = "女性私人医生/CureMe.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
-				CODE_SIGN_STYLE = Manual;
-				DEVELOPMENT_TEAM = "";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 429WZWZX68;
 				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4885,8 +4887,8 @@
 				CODE_SIGN_ENTITLEMENTS = "女性私人医生/CureMe.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
-				CODE_SIGN_STYLE = Manual;
-				DEVELOPMENT_TEAM = "";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 429WZWZX68;
 				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",

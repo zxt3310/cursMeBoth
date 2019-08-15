@@ -93,6 +93,7 @@ NSString *md5Str;
 
 UILabel *nameLabel;
 UIView *infoView;
+NSString *SWT_url;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -1856,6 +1857,7 @@ UIView *infoView;
             hospitalCookie = jsonData[@"data"][@"cookie"];
             hospitalUrl = jsonData[@"data"][@"url"];
             _chatSWTID = [jsonData[@"data"][@"chatid"] integerValue];
+            SWT_url = jsonData[@"data"][@"swturl"];
             [self getUrlBody];
         });
     });
@@ -1968,15 +1970,15 @@ UIView *infoView;
         NSString *urlStr = [NSString stringWithFormat:@"http://%@/LR/CdCheck.aspx", hospitalParams[@"swtdomain"]];
         NSString *post;
         if (msg.length ==0) {
-            post = [NSString stringWithFormat:@"pp=%@&maxid=%ld&lng=cn&id=%@&_text=&sid=%@", hospitalParams[@"pp"], (long)swtMaxID, hospitalParams[@"id"], hospitalParams[@"sid"]];
+            post = [NSString stringWithFormat:@"pp=%@&maxid=%ld&lng=cn&id=%@&_text=&sid=%@&sid1=%@", hospitalParams[@"pp"], (long)swtMaxID, hospitalParams[@"id"], hospitalParams[@"sid"],hospitalParams[@"sid"]];
         }else{
             NSString *txt = [NSString stringWithFormat:@",ACT_TEMP|1|,%@", msg];
             NSString *encodedTXT = urlEncode(txt);
-            post = [NSString stringWithFormat:@"pp=%@&maxid=%ld&lng=cn&id=%@&_text=%@&sid=%@", hospitalParams[@"pp"], (long)swtMaxID, hospitalParams[@"id"], encodedTXT, hospitalParams[@"sid"]];
+            post = [NSString stringWithFormat:@"pp=%@&maxid=%ld&lng=cn&id=%@&_text=%@&sid=%@&sid1=%@", hospitalParams[@"pp"], (long)swtMaxID, hospitalParams[@"id"], encodedTXT, hospitalParams[@"sid"],hospitalParams[@"sid"]];
         }
         urlStr = [NSString stringWithFormat:@"%@?%@", urlStr, post];
         NSDictionary *additionalHeader = nil;
-        additionalHeader = [NSDictionary dictionaryWithObjectsAndKeys:@"1", @"appid", hospitalCookie, @"Cookie", nil];
+        additionalHeader = [NSDictionary dictionaryWithObjectsAndKeys:@"1", @"appid", hospitalCookie, @"Cookie",SWT_url,@"Referer",nil];
         NSMutableDictionary *respDict = [[NSMutableDictionary alloc] init];
         NSData *response = sendGetReqWithHeaderAndRespDict(urlStr, additionalHeader, respDict, false);
         
@@ -1992,55 +1994,88 @@ UIView *infoView;
                 [questionInput resignFirstResponder];
                 [self addUserClientMessage:msg msgDate:[NSDate date]];
                 [self sendMsgOK:msg maxid:swtMaxID userid:_swtUserID];
-            }
-            
-            NSString *strResp = [[NSString alloc] initWithData:response encoding:NSUTF8StringEncoding];
-            strResp = [strResp stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            NSString *tmp = [strResp stringByReplacingOccurrencesOfString:@"%u" withString:@"\\u"];
-            tmp = [tmp stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-            NSString *decodedResp = replaceUnicode(tmp);
-            if ([decodedResp isEqualToString:@",noinput"]) {
-                if (msg.length>0) {
-                    [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
-                }
-                return;
-            }
-            BOOL hasNewMsg = NO;
-            
-            NSArray *firstSplit = [decodedResp componentsSeparatedByString:@",|"];
-            if (firstSplit.count==0) {
-                if (msg.length>0) {
-                    [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
-                }
-                return;
-            }
-            for(NSString *line in firstSplit) {
-                if ([line rangeOfString:@"|direct|"].location != NSNotFound || [line rangeOfString:@"|close|"].location != NSNotFound || [line rangeOfString:@"|end|"].location != NSNotFound) {
-                    [self closeSWT];
-                    return;
-                }
-                NSArray *secondSplit = [line componentsSeparatedByString:@"||"];
-                if (secondSplit.count==1)
-                    continue;
-                if (secondSplit.count==2){
-                    for(NSString *fid in secondSplit) {
-                        NSArray *params = [fid componentsSeparatedByString:@"|"];
-                        if (params.count==3) {
-                            NSString *doctorMsg = [params objectAtIndex:0];
-                            //过滤掉html标签
-                            doctorMsg = removeHTML(doctorMsg);
-                            doctorMsg = [doctorMsg stringByReplacingOccurrencesOfString:@"+" withString:@" "];
-                            swtMaxID = [[params objectAtIndex:2] integerValue];
-                            [self addSWTDoctorClientMessage:doctorMsg msgDate:[NSDate date]];
-                            [self sendMsgOK:doctorMsg maxid:swtMaxID userid:_doctorID];
-                            hasNewMsg = YES;
-                        }
-                    }
-                }
-            }
-            if (hasNewMsg || msg.length>0) {
                 [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
             }
+            
+            NSString *strResp = [[NSString alloc] initWithData:response encoding:NSASCIIStringEncoding];
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSString *urlStr = [NSString stringWithFormat:@"http://exswt.lifehealthcare.com/api2/msgreceiver/%ld/%ld",(long)[CureMeUtils defaultCureMeUtil].userID,(long)[CureMeUtils defaultCureMeUtil].userSWTID];
+                NSString *post = [NSString stringWithFormat:@"data=%@&maxid=%ld",strResp,(long)swtMaxID];
+                NSData *receiveData = sendRequestWithFullURL(urlStr, post);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (!receiveData) {
+                        return ;
+                    }
+                    NSDictionary *receiveDic = parseJsonResponse(receiveData);
+                    NSNumber *res = [receiveDic objectForKey:@"err"];
+                    if ([res integerValue] == 0) {
+                        id data = [receiveDic objectForKey:@"data"];
+                        if (!data || [data isEqual:[NSNull null]]) {
+                            return;
+                        }
+                        NSArray *listAry = [[receiveDic objectForKey:@"data"] objectForKey:@"list"];
+                        NSDictionary *dataList = [listAry firstObject];
+                        NSString *message = [dataList objectForKey:@"message"];
+                        if (message.length == 0) {
+                            return;
+                        }
+                        swtMaxID = [[[receiveDic objectForKey:@"data"] objectForKey:@"maxid"] integerValue];;
+                        [self addSWTDoctorClientMessage:message msgDate:[NSDate date]];
+                        [self sendMsgOK:message maxid:swtMaxID userid:_doctorID];
+                        [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
+                        
+                    }else{
+                        [self closeSWT];
+                    }
+                });
+                
+            });
+            //            strResp = [strResp stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            //            NSString *tmp = [strResp stringByReplacingOccurrencesOfString:@"%u" withString:@"\\u"];
+            //            tmp = [tmp stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+            //            NSString *decodedResp = replaceUnicode(tmp);
+            //            if ([decodedResp isEqualToString:@",noinput"]) {
+            //                if (msg.length>0) {
+            //                    [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
+            //                }
+            //                return;
+            //            }
+            //            BOOL hasNewMsg = NO;
+            //
+            //            NSArray *firstSplit = [decodedResp componentsSeparatedByString:@",|"];
+            //            if (firstSplit.count==0) {
+            //                if (msg.length>0) {
+            //                    [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
+            //                }
+            //                return;
+            //            }
+            //            for(NSString *line in firstSplit) {
+            //                if ([line rangeOfString:@"|direct|"].location != NSNotFound || [line rangeOfString:@"|close|"].location != NSNotFound || [line rangeOfString:@"|end|"].location != NSNotFound) {
+            //                    [self closeSWT];
+            //                    return;
+            //                }
+            //                NSArray *secondSplit = [line componentsSeparatedByString:@"||"];
+            //                if (secondSplit.count==1)
+            //                    continue;
+            //                if (secondSplit.count==2){
+            //                    for(NSString *fid in secondSplit) {
+            //                        NSArray *params = [fid componentsSeparatedByString:@"|"];
+            //                        if (params.count==3) {
+            //                            NSString *doctorMsg = [params objectAtIndex:0];
+            //                            //过滤掉html标签
+            //                            doctorMsg = removeHTML(doctorMsg);
+            //                            doctorMsg = [doctorMsg stringByReplacingOccurrencesOfString:@"+" withString:@" "];
+            //                            swtMaxID = [[params objectAtIndex:2] integerValue];
+            //                            [self addSWTDoctorClientMessage:doctorMsg msgDate:[NSDate date]];
+            //                            [self sendMsgOK:doctorMsg maxid:swtMaxID userid:_doctorID];
+            //                            hasNewMsg = YES;
+            //                        }
+            //                    }
+            //                }
+            //            }
+            //            if (hasNewMsg || msg.length>0) {
+            //                [self performSelectorOnMainThread:@selector(reloadData:) withObject:nil waitUntilDone:NO];
+            //            }
         });
     });
 }
